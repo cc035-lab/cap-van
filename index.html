@@ -102,7 +102,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1 id="title">Borrow the CAP Van</h1>
+    <h1 id="title">Reserve COV-47007</h1>
     <p id="sub">Loading…</p>
   </header>
 
@@ -300,7 +300,7 @@
     const res = await api({ action: 'init' });
     if (!res.ok) throw new Error(res.message);
     bookings = res.bookings;
-    $('title').textContent = 'Borrow the ' + res.cfg.vanName;
+    $('title').textContent = 'Reserve ' + res.cfg.vanName;
     $('sub').textContent = res.cfg.squadron + ' lends its van to other squadrons. See who has it, then send a request.';
     document.title = res.cfg.vanName + ' Reservations';
     $('fine').textContent = 'The driver must be a qualified CAP vehicle operator. Requests are reviewed by ' +
