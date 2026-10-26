@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>COV47007 Van Reservations</title>
+<title>CAP Van Reservations</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;800&display=swap" rel="stylesheet">
 <script>
@@ -102,7 +102,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1 id="title">Reserve CAP Van</h1>
+    <h1 id="title">Reserve COV47007</h1>
     <p id="sub">Loading…</p>
   </header>
 
@@ -189,12 +189,8 @@
           </select>
         </label>
         <label id="sqOtherWrap" hidden>Unit name and charter number<input id="sqOther" placeholder="e.g. NJ-001 New Jersey Wing"></label>
-        <label>Contact name<input name="name" autocomplete="name" required></label>
-        <div class="row2">
-          <label>Contact email<input type="email" name="email" autocomplete="email" required></label>
-          <label>Contact phone<input type="tel" name="phone" autocomplete="tel" required></label>
-        </div>
-        <p class="fine">Your contact details are seen only by the approving squadron. The public calendar shows just your squadron and dates.</p>
+        <label>Contact email<input type="email" name="email" autocomplete="email" required></label>
+        <p class="fine">Your email is seen only by the approving squadron. The public calendar shows just your squadron and dates.</p>
         <p class="fine" id="fine"></p>
         <div id="formMsg" class="msg" role="status"></div>
         <button class="btn primary" type="submit" id="send">Send request</button>
@@ -428,16 +424,14 @@
 
     $('showChange').onclick = () => {
       $('formArea').innerHTML = '<h3>Request a change</h3><div class="stack">' +
-        '<p class="fine">Edit only what needs to change.</p>' +
+        '<p class="fine">Choose the new pickup and return times.</p>' +
         '<div class="row2"><label>Pickup<input type="datetime-local" id="c_pickup" value="' + esc(booking.pickupInput) + '"></label>' +
         '<label>Return<input type="datetime-local" id="c_ret" value="' + esc(booking.retInput) + '"></label></div>' +
-        '<div class="row2"><label>Contact name<input id="c_name" value="' + esc(booking.name) + '"></label>' +
-        '<label>Contact phone<input id="c_phone" type="tel" value="' + esc(booking.phone) + '"></label></div>' +
         '<label>Reason for the change<textarea id="c_reason"></textarea></label>' +
         '<div><button class="btn primary" id="sendChange">Send change request</button></div></div>';
       $('sendChange').onclick = () => {
         const data = {};
-        ['pickup', 'ret', 'name', 'phone'].forEach(k => data[k] = $('c_' + k).value);
+        ['pickup', 'ret'].forEach(k => data[k] = $('c_' + k).value);
         send({ action: 'requestChange', id: ID, t: TOK, data, reason: $('c_reason').value }, area);
       };
     };
@@ -458,7 +452,7 @@
     document.title = res.cfg.vanName + ' reservation';
     const b = booking;
     $('details').innerHTML = [['Status', b.status], ['Pickup', b.pickup], ['Return', b.ret], ['Squadron', b.squadron],
-      ['Contact', b.name], ['Email', b.email], ['Phone', b.phone]]
+      ['Contact email', b.email]]
       .map(x => '<dt>' + x[0] + '</dt><dd>' + esc(x[1]) + '</dd>').join('');
     renderChange(res.change);
     renderActions(res.change);
