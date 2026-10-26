@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CAP Van Reservations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+<script>
+  // ====== EDIT THIS: paste your Apps Script web app URL (ends in /exec) ======
+  const API_URL = 'https://script.google.com/macros/s/PASTE_YOUR_ID_HERE/exec';
+</script>
+<style>
+  :root {
+    --blue: #0E2B5C; --red: #BA0C2F; --amber: #B26B00;
+    --bg: #F4F6FA; --surface: #FFFFFF; --text: #14213A; --muted: #5B6680; --line: #D3DAE6;
+    --booked-bg: #F8DCE2; --pending-bg: #FCEBCF; --today: #0E2B5C;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --blue: #8FB0EA; --red: #F0788E; --amber: #F2B65A;
+      --bg: #0E1626; --surface: #16213A; --text: #E6ECF7; --muted: #9AA7C2; --line: #2B3A5A;
+      --booked-bg: #4A1F2C; --pending-bg: #48361A; --today: #8FB0EA;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.5 "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 20px 16px 48px; }
+  header { border-bottom: 4px solid var(--red); padding-bottom: 12px; margin-bottom: 20px; }
+  h1 { font-size: 1.9rem; font-weight: 800; line-height: 1.15; margin: 0; color: var(--blue); }
+  header p { margin: 4px 0 0; color: var(--muted); }
+  h2 { font-size: 1.2rem; font-weight: 800; margin: 28px 0 10px; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  [hidden] { display: none !important; }
+
+  .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .cal-head strong { font-size: 1.1rem; }
+  .nav { background: none; border: 1px solid var(--line); color: var(--text); border-radius: 8px;
+         width: 40px; height: 40px; font-size: 1.2rem; cursor: pointer; }
+  .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .dow { text-align: center; font-size: .8rem; color: var(--muted); font-weight: 600; padding-bottom: 4px; }
+  .day { aspect-ratio: 1; border: 1px solid var(--line); border-radius: 6px; background: var(--surface);
+         color: var(--text); font: inherit; font-size: .95rem; cursor: pointer; padding: 0; }
+  .day.out { visibility: hidden; }
+  .day.past { color: var(--muted); opacity: .55; }
+  .day.booked { background: var(--booked-bg); border-color: var(--red); font-weight: 600; }
+  .day.pending { background: var(--pending-bg); border-color: var(--amber); font-weight: 600; }
+  .day.today { outline: 2px solid var(--today); outline-offset: -2px; }
+  .day[aria-pressed="true"] { box-shadow: inset 0 0 0 3px var(--blue); }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; font-size: .85rem; color: var(--muted); }
+  .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  #dayInfo { margin-top: 12px; font-size: .95rem; min-height: 1.5em; }
+  #dayInfo div { padding: 6px 0; border-top: 1px solid var(--line); }
+
+  form { display: grid; gap: 14px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 520px) { .row2 { grid-template-columns: 1fr; } }
+  label { display: grid; gap: 4px; font-weight: 600; font-size: .9rem; }
+  input, textarea, select { font: inherit; padding: 10px; border: 1px solid var(--line); border-radius: 8px;
+                            background: var(--bg); color: var(--text); width: 100%; }
+  textarea { min-height: 70px; resize: vertical; }
+  .btn { border: 0; border-radius: 8px; padding: 12px 18px; font: inherit; font-weight: 800; cursor: pointer; }
+  .primary { background: var(--blue); color: var(--surface); }
+  .danger { background: var(--red); color: #fff; }
+  .btn:disabled { opacity: .6; cursor: wait; }
+  :focus-visible { outline: 3px solid var(--red); outline-offset: 2px; }
+  .msg { padding: 12px; border-radius: 8px; }
+  .msg.ok { background: var(--pending-bg); border-left: 4px solid var(--blue); }
+  .msg.err { background: var(--booked-bg); border-left: 4px solid var(--red); }
+  .msg:empty { display: none; }
+  .fine { font-size: .85rem; color: var(--muted); }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; }
+  dt { font-weight: 600; color: var(--muted); }
+  dd { margin: 0; }
+  .actions { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="title">Borrow the CAP Van</h1>
+    <p id="sub">Loading…</p>
+  </header>
+
+  <!-- Booking view -->
+  <main id="bookView" hidden>
+    <section class="panel" aria-label="Availability calendar">
+      <div class="cal-head">
+        <button class="nav" id="prev" aria-label="Previous month">‹</button>
+        <strong id="monthLabel"></strong>
+        <button class="nav" id="next" aria-label="Next month">›</button>
+      </div>
+      <div class="grid" id="dows"></div>
+      <div class="grid" id="days"></div>
+      <div class="legend">
+        <span><span class="sw" style="background:var(--booked-bg);border:1px solid var(--red)"></span>Booked</span>
+        <span><span class="sw" style="background:var(--pending-bg);border:1px solid var(--amber)"></span>Requested, awaiting approval</span>
+      </div>
+      <div id="dayInfo" aria-live="polite"><span class="fine">Tap a date to see who has the van.</span></div>
+    </section>
+
+    <h2>Request the van</h2>
+    <section class="panel">
+      <form id="f" novalidate>
+        <div class="row2">
+          <label>Pickup<input type="datetime-local" name="pickup" required></label>
+          <label>Return<input type="datetime-local" name="ret" required></label>
+        </div>
+        <div class="row2">
+          <label>Your name<input name="name" autocomplete="name" required></label>
+          <label>Your CAPID<input name="capid" inputmode="numeric" required></label>
+        </div>
+        <div class="row2">
+          <label>Email<input type="email" name="email" autocomplete="email" required></label>
+          <label>Phone<input type="tel" name="phone" autocomplete="tel" required></label>
+        </div>
+        <label>Squadron (name and charter number)<input name="squadron" placeholder="e.g. PA-123 Example Composite Squadron" required></label>
+        <div class="row2">
+          <label>Driver name<input name="driver" required></label>
+          <label>Driver CAPID<input name="driverCapid" inputmode="numeric" required></label>
+        </div>
+        <label>Purpose<textarea name="purpose" required></textarea></label>
+        <label>Destination<input name="destination" required></label>
+        <p class="fine" id="fine"></p>
+        <div id="formMsg" class="msg" role="status"></div>
+        <button class="btn primary" type="submit" id="send">Send request</button>
+      </form>
+    </section>
+  </main>
+
+  <!-- Review / cancel / return view -->
+  <main id="actionView" hidden>
+    <section class="panel">
+      <dl id="details"></dl>
+      <div id="actionArea"></div>
+      <div id="actionMsg" class="msg" role="status" style="margin-top:16px"></div>
+    </section>
+    <p class="fine" style="margin-top:16px"><a href="./">Back to the van calendar</a></p>
+  </main>
+
+  <div id="loadErr" class="msg err" hidden></div>
+</div>
+
+<script>
+  /* ---------- API ---------- */
+  async function api(payload) {
+    // text/plain avoids a CORS preflight; no Google login is involved.
+    const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload), redirect: 'follow' });
+    if (!res.ok) throw new Error('Server responded ' + res.status);
+    return res.json();
+  }
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
+    c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  function showMsg(el, text, ok) { el.textContent = text; el.className = 'msg ' + (ok ? 'ok' : 'err'); }
+  function setHeader(cfg) {
+    $('title').textContent = 'Borrow the ' + cfg.vanName;
+    $('sub').textContent = cfg.squadron + ' lends its van to other squadrons. Check the calendar, then send a request.';
+    document.title = cfg.vanName + ' Reservations';
+  }
+  function fatal(text) { $('sub').textContent = ''; $('loadErr').hidden = false; $('loadErr').textContent = text; }
+
+  /* ---------- Booking view ---------- */
+  let bookings = [], selected = null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const view = new Date(today.getFullYear(), today.getMonth(), 1);
+
+  function onDay(d) {
+    const s = d.getTime(), e = s + 864e5;
+    return bookings.filter(b => b.start < e && b.end > s);
+  }
+  function render() {
+    $('monthLabel').textContent = view.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    const first = view.getDay();
+    const count = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
+    let html = '';
+    for (let i = 0; i < first; i++) html += '<button class="day out" tabindex="-1" aria-hidden="true"></button>';
+    for (let n = 1; n <= count; n++) {
+      const d = new Date(view.getFullYear(), view.getMonth(), n);
+      const list = onDay(d), cls = ['day'];
+      if (d < today) cls.push('past');
+      if (d.getTime() === today.getTime()) cls.push('today');
+      if (list.some(b => b.status === 'Approved')) cls.push('booked');
+      else if (list.length) cls.push('pending');
+      const pressed = !!selected && selected.getTime() === d.getTime();
+      html += '<button class="' + cls.join(' ') + '" data-t="' + d.getTime() + '" aria-pressed="' + pressed +
+        '" aria-label="' + d.toDateString() + (list.length ? ', reserved' : ', available') + '">' + n + '</button>';
+    }
+    $('days').innerHTML = html;
+  }
+  function showDay(d) {
+    selected = d; render();
+    const list = onDay(d);
+    const title = '<strong>' + d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) + '</strong>';
+    $('dayInfo').innerHTML = !list.length ? title + ': available.' :
+      title + list.map(b => '<div>' + (b.status === 'Approved' ? 'Booked' : 'Requested') + ' by ' + esc(b.squadron) +
+        '<br><span class="fine">' + esc(b.label) + '</span></div>').join('');
+  }
+  async function loadBookings() {
+    const res = await api({ action: 'init' });
+    if (!res.ok) throw new Error(res.message);
+    bookings = res.bookings;
+    setHeader(res.cfg);
+    $('fine').textContent = 'The driver must be a qualified CAP vehicle operator. Requests are reviewed by ' +
+      res.cfg.squadron + ' before they are confirmed. Maximum ' + res.cfg.maxDays + ' days.';
+    render();
+  }
+  function startBooking() {
+    $('dows').innerHTML = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => '<div class="dow">' + d + '</div>').join('');
+    $('days').addEventListener('click', e => {
+      const b = e.target.closest('.day'); if (b && b.dataset.t) showDay(new Date(+b.dataset.t));
+    });
+    $('prev').onclick = () => { view.setMonth(view.getMonth() - 1); render(); };
+    $('next').onclick = () => { view.setMonth(view.getMonth() + 1); render(); };
+    $('f').addEventListener('submit', async e => {
+      e.preventDefault();
+      const btn = $('send'); btn.disabled = true; btn.textContent = 'Sending…'; $('formMsg').textContent = '';
+      try {
+        const res = await api({ action: 'submit', data: Object.fromEntries(new FormData(e.target)) });
+        showMsg($('formMsg'), res.message, res.ok);
+        if (res.ok) { e.target.reset(); await loadBookings(); }
+      } catch (err) {
+        showMsg($('formMsg'), 'The request did not go through. Check your connection and try again.', false);
+      }
+      btn.disabled = false; btn.textContent = 'Send request';
+    });
+    render();
+    loadBookings().then(() => { $('bookView').hidden = false; })
+      .catch(() => fatal('Reservations could not load. Refresh the page to try again.'));
+  }
+
+  /* ---------- Review / cancel / return view ---------- */
+  async function startAction(mode, id, t) {
+    let res;
+    try { res = await api({ action: 'get', mode, id, t }); }
+    catch (err) { return fatal('The reservation could not load. Refresh the page to try again.'); }
+    if (!res.ok) return fatal(res.message);
+    setHeader(res.cfg);
+    $('title').textContent = res.cfg.vanName + ' reservation';
+    $('sub').textContent = res.cfg.squadron;
+    const b = res.booking;
+    $('details').innerHTML = [['Status', b.status], ['Pickup', b.pickup], ['Return', b.ret], ['Squadron', b.squadron],
+      ['Requested by', b.name + ' (' + b.capid + ')'], ['Driver', b.driver + ' (' + b.driverCapid + ')'],
+      ['Phone', b.phone], ['Purpose', b.purpose], ['Destination', b.destination]]
+      .map(x => '<dt>' + x[0] + '</dt><dd>' + esc(x[1]) + '</dd>').join('');
+
+    const area = $('actionArea'), active = b.status === 'Pending' || b.status === 'Approved';
+    if (mode === 'review' && b.status === 'Pending') {
+      area.innerHTML = '<div class="actions"><button class="btn primary" data-d="approve">Approve</button>' +
+                       '<button class="btn danger" data-d="deny">Deny</button></div>';
+    } else if (mode === 'review' && b.status === 'Approved') {
+      area.innerHTML = '<div class="actions"><button class="btn danger" data-d="cancel">Cancel reservation</button></div>';
+    } else if (mode === 'cancel' && active) {
+      area.innerHTML = '<p>Cancel this reservation? The van will be released for others to book.</p>' +
+        '<div class="actions"><button class="btn danger" data-c="1">Cancel reservation</button></div>';
+    } else if (mode === 'return' && b.status === 'Approved') {
+      area.innerHTML = '<label style="margin-top:14px">Ending mileage<input id="mi" inputmode="numeric"></label>' +
+        '<label style="margin-top:12px">Fuel level<select id="fuel"><option value="">Choose…</option>' +
+        '<option>Full</option><option>3/4</option><option>1/2</option><option>1/4</option><option>Near empty</option></select></label>' +
+        '<label style="margin-top:12px">Damage or issues<textarea id="notes" placeholder="Leave blank if none"></textarea></label>' +
+        '<div class="actions"><button class="btn primary" data-r="1">Submit return report</button></div>';
+    } else {
+      area.innerHTML = '<p>No action is needed. This reservation is ' + esc(b.status.toLowerCase()) + '.</p>';
+    }
+
+    area.addEventListener('click', async e => {
+      const btn = e.target.closest('button'); if (!btn) return;
+      let payload;
+      if (btn.dataset.d) payload = { action: 'decide', id, t, decision: btn.dataset.d };
+      else if (btn.dataset.c) payload = { action: 'cancel', id, t };
+      else if (btn.dataset.r) {
+        const mi = $('mi').value.trim(), fuel = $('fuel').value;
+        if (!mi || !fuel) return showMsg($('actionMsg'), 'Enter the ending mileage and fuel level.', false);
+        payload = { action: 'return', id, t, mileage: mi, fuel, notes: $('notes').value };
+      }
+      area.querySelectorAll('button').forEach(x => x.disabled = true);
+      try {
+        const r = await api(payload);
+        showMsg($('actionMsg'), r.message, r.ok);
+        if (!r.ok) area.querySelectorAll('button').forEach(x => x.disabled = false);
+      } catch (err) {
+        showMsg($('actionMsg'), 'That did not go through. Check your connection and try again.', false);
+        area.querySelectorAll('button').forEach(x => x.disabled = false);
+      }
+    });
+    $('actionView').hidden = false;
+  }
+
+  /* ---------- Start ---------- */
+  const q = new URLSearchParams(location.search);
+  if (q.get('a') && q.get('id') && q.get('t')) startAction(q.get('a'), q.get('id'), q.get('t'));
+  else startBooking();
+</script>
+</body>
+</html>
