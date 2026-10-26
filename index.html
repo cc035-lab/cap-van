@@ -3,24 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CAP Van Reservations</title>
+<title>COV47007 Van Reservations</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;800&display=swap" rel="stylesheet">
 <script>
   // ====== EDIT THIS: paste your Apps Script web app URL (ends in /exec) ======
- const API_URL = 'https://script.google.com/macros/s/AKfycbz5bJ9Tn7Gg0L_syyiOEM8aekTsvFXHNHrpu3XUmY2gs9cqavg4aUcaakcrOCqHXRzJ/exec';
+  const API_URL = 'https://script.google.com/macros/s/AKfycbz5bJ9Tn7Gg0L_syyiOEM8aekTsvFXHNHrpu3XUmY2gs9cqavg4aUcaakcrOCqHXRzJ/exec';
 </script>
 <style>
   :root {
     --blue: #0E2B5C; --red: #BA0C2F; --amber: #B26B00;
     --bg: #F4F6FA; --surface: #FFFFFF; --text: #14213A; --muted: #5B6680; --line: #D3DAE6;
-    --booked-bg: #F8DCE2; --pending-bg: #FCEBCF; --today: #0E2B5C;
+    --booked-bg: #F8DCE2; --pending-bg: #FCEBCF; --free-bg: #DDEFE3; --free: #1E6B3A; --today: #0E2B5C;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --blue: #8FB0EA; --red: #F0788E; --amber: #F2B65A;
       --bg: #0E1626; --surface: #16213A; --text: #E6ECF7; --muted: #9AA7C2; --line: #2B3A5A;
-      --booked-bg: #4A1F2C; --pending-bg: #48361A; --today: #8FB0EA;
+      --booked-bg: #4A1F2C; --pending-bg: #48361A; --free-bg: #173A26; --free: #8FD6A8; --today: #8FB0EA;
     }
   }
   * { box-sizing: border-box; }
@@ -31,8 +31,23 @@
   h1 { font-size: 1.9rem; font-weight: 800; line-height: 1.15; margin: 0; color: var(--blue); }
   header p { margin: 4px 0 0; color: var(--muted); }
   h2 { font-size: 1.2rem; font-weight: 800; margin: 28px 0 10px; }
+  h3 { font-size: 1.05rem; font-weight: 800; margin: 18px 0 8px; }
   .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
   [hidden] { display: none !important; }
+
+  /* Who has the van */
+  .status { border-radius: 10px; padding: 16px 18px; border-left: 6px solid; }
+  .status.out { background: var(--booked-bg); border-color: var(--red); }
+  .status.free { background: var(--free-bg); border-color: var(--free); }
+  .status .big { font-size: 1.35rem; font-weight: 800; line-height: 1.25; }
+  .status .detail { margin-top: 4px; }
+
+  .list { list-style: none; margin: 0; padding: 0; }
+  .list li { padding: 10px 0; border-top: 1px solid var(--line); }
+  .list li:first-child { border-top: 0; }
+  .tag { display: inline-block; font-size: .78rem; font-weight: 600; padding: 1px 8px; border-radius: 99px; margin-left: 6px; }
+  .tag.ok { background: var(--booked-bg); color: var(--red); }
+  .tag.wait { background: var(--pending-bg); color: var(--amber); }
 
   .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
   .cal-head strong { font-size: 1.1rem; }
@@ -46,6 +61,7 @@
   .day.past { color: var(--muted); opacity: .55; }
   .day.booked { background: var(--booked-bg); border-color: var(--red); font-weight: 600; }
   .day.pending { background: var(--pending-bg); border-color: var(--amber); font-weight: 600; }
+  .day.req { border-style: dashed; border-width: 2px; border-color: var(--amber); }
   .day.today { outline: 2px solid var(--today); outline-offset: -2px; }
   .day[aria-pressed="true"] { box-shadow: inset 0 0 0 3px var(--blue); }
   .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; font-size: .85rem; color: var(--muted); }
@@ -53,7 +69,7 @@
   #dayInfo { margin-top: 12px; font-size: .95rem; min-height: 1.5em; }
   #dayInfo div { padding: 6px 0; border-top: 1px solid var(--line); }
 
-  form { display: grid; gap: 14px; }
+  form, .stack { display: grid; gap: 14px; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   @media (max-width: 520px) { .row2 { grid-template-columns: 1fr; } }
   label { display: grid; gap: 4px; font-weight: 600; font-size: .9rem; }
@@ -63,17 +79,24 @@
   .btn { border: 0; border-radius: 8px; padding: 12px 18px; font: inherit; font-weight: 800; cursor: pointer; }
   .primary { background: var(--blue); color: var(--surface); }
   .danger { background: var(--red); color: #fff; }
+  .plain { background: none; border: 1px solid var(--line); color: var(--text); }
   .btn:disabled { opacity: .6; cursor: wait; }
   :focus-visible { outline: 3px solid var(--red); outline-offset: 2px; }
   .msg { padding: 12px; border-radius: 8px; }
-  .msg.ok { background: var(--pending-bg); border-left: 4px solid var(--blue); }
+  .msg.ok { background: var(--free-bg); border-left: 4px solid var(--free); }
   .msg.err { background: var(--booked-bg); border-left: 4px solid var(--red); }
+  .msg.note { background: var(--pending-bg); border-left: 4px solid var(--amber); }
   .msg:empty { display: none; }
   .fine { font-size: .85rem; color: var(--muted); }
   dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; }
   dt { font-weight: 600; color: var(--muted); }
   dd { margin: 0; }
-  .actions { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+  .actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+  .diff { width: 100%; border-collapse: collapse; font-size: .95rem; }
+  .diff th, .diff td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--line); vertical-align: top; }
+  .diff th { color: var(--muted); font-weight: 600; border-top: 0; }
+  .diff td.new { font-weight: 600; }
+  .tablewrap { overflow-x: auto; }
 </style>
 </head>
 <body>
@@ -83,8 +106,14 @@
     <p id="sub">Loading…</p>
   </header>
 
-  <!-- Booking view -->
+  <!-- ===== Public booking view ===== -->
   <main id="bookView" hidden>
+    <div id="nowStatus" class="status" aria-live="polite"></div>
+
+    <h2>Coming up</h2>
+    <section class="panel"><ul class="list" id="upcoming"></ul></section>
+
+    <h2>Calendar</h2>
     <section class="panel" aria-label="Availability calendar">
       <div class="cal-head">
         <button class="nav" id="prev" aria-label="Previous month">‹</button>
@@ -96,6 +125,7 @@
       <div class="legend">
         <span><span class="sw" style="background:var(--booked-bg);border:1px solid var(--red)"></span>Booked</span>
         <span><span class="sw" style="background:var(--pending-bg);border:1px solid var(--amber)"></span>Requested, awaiting approval</span>
+        <span><span class="sw" style="border:2px dashed var(--amber)"></span>Change or cancellation requested</span>
       </div>
       <div id="dayInfo" aria-live="polite"><span class="fine">Tap a date to see who has the van.</span></div>
     </section>
@@ -107,32 +137,77 @@
           <label>Pickup<input type="datetime-local" name="pickup" required></label>
           <label>Return<input type="datetime-local" name="ret" required></label>
         </div>
+        <label>Squadron
+          <select id="sqSelect" name="squadronPick" required>
+            <option value="">Choose your squadron…</option>
+            <option value="PA-001 Pennsylvania Wing Headquarters">PA-001 Pennsylvania Wing Headquarters</option>
+            <option value="PA-002 Group 1 Headquarters">PA-002 Group 1 Headquarters</option>
+            <option value="PA-003 Group 2 Headquarters">PA-003 Group 2 Headquarters</option>
+            <option value="PA-004 Group 3 Headquarters">PA-004 Group 3 Headquarters</option>
+            <option value="PA-005 Group 4 Headquarters">PA-005 Group 4 Headquarters</option>
+            <option value="PA-006 Group 5 Headquarters">PA-006 Group 5 Headquarters</option>
+            <option value="PA-007 Group 6 Headquarters">PA-007 Group 6 Headquarters</option>
+            <option value="PA-009 Erie Composite Squadron">PA-009 Erie Composite Squadron</option>
+            <option value="PA-010 Jesse Jones Composite Squadron (Lancaster)">PA-010 Jesse Jones Composite Squadron (Lancaster)</option>
+            <option value="PA-018 Gen Carl A Spaatz Composite Squadron">PA-018 Gen Carl A Spaatz Composite Squadron</option>
+            <option value="PA-025 Allegheny County Composite Squadron">PA-025 Allegheny County Composite Squadron</option>
+            <option value="PA-035 Quakertown Composite Squadron">PA-035 Quakertown Composite Squadron</option>
+            <option value="PA-045 Dauphin County Composite Squadron">PA-045 Dauphin County Composite Squadron</option>
+            <option value="PA-060 Capital City Composite Squadron">PA-060 Capital City Composite Squadron</option>
+            <option value="PA-065 Piper Composite Squadron">PA-065 Piper Composite Squadron</option>
+            <option value="PA-066 Luzerne County Composite Squadron">PA-066 Luzerne County Composite Squadron</option>
+            <option value="PA-080 Chester County Composite Squadron">PA-080 Chester County Composite Squadron</option>
+            <option value="PA-089 Reading Composite Squadron">PA-089 Reading Composite Squadron</option>
+            <option value="PA-105 Griffin Composite Squadron">PA-105 Griffin Composite Squadron</option>
+            <option value="PA-125 Armstrong County Composite Squadron">PA-125 Armstrong County Composite Squadron</option>
+            <option value="PA-133 Golden Triangle Composite Squadron">PA-133 Golden Triangle Composite Squadron</option>
+            <option value="PA-143 Major Don Beatty Composite Squadron">PA-143 Major Don Beatty Composite Squadron</option>
+            <option value="PA-146 Doylestown Composite Squadron">PA-146 Doylestown Composite Squadron</option>
+            <option value="PA-160 Willow Grove JRB Composite Squadron">PA-160 Willow Grove JRB Composite Squadron</option>
+            <option value="PA-190 Butler Composite Squadron">PA-190 Butler Composite Squadron</option>
+            <option value="PA-201 Scranton Composite Squadron (Endless Mountains)">PA-201 Scranton Composite Squadron (Endless Mountains)</option>
+            <option value="PA-214 Northeast Philadelphia Composite Squadron">PA-214 Northeast Philadelphia Composite Squadron</option>
+            <option value="PA-251 Hilltown Senior Squadron">PA-251 Hilltown Senior Squadron</option>
+            <option value="PA-253 Jimmy Stewart Composite Squadron">PA-253 Jimmy Stewart Composite Squadron</option>
+            <option value="PA-258 Cambria County Composite Squadron">PA-258 Cambria County Composite Squadron</option>
+            <option value="PA-265 Lebanon VFW Composite Squadron">PA-265 Lebanon VFW Composite Squadron</option>
+            <option value="PA-288 Brush Mountain Composite Squadron">PA-288 Brush Mountain Composite Squadron</option>
+            <option value="PA-292 Pocono Mountains Composite Squadron">PA-292 Pocono Mountains Composite Squadron</option>
+            <option value="PA-296 Lehigh Valley Composite Squadron">PA-296 Lehigh Valley Composite Squadron</option>
+            <option value="PA-301 Liberty Composite Squadron">PA-301 Liberty Composite Squadron</option>
+            <option value="PA-303 Braden Composite Squadron">PA-303 Braden Composite Squadron</option>
+            <option value="PA-308 Gettysburg Composite Squadron">PA-308 Gettysburg Composite Squadron</option>
+            <option value="PA-310 Beaver County Composite Squadron">PA-310 Beaver County Composite Squadron</option>
+            <option value="PA-326 Clarion Composite Squadron">PA-326 Clarion Composite Squadron</option>
+            <option value="PA-337 Lawrence County Composite Squadron">PA-337 Lawrence County Composite Squadron</option>
+            <option value="PA-338 Nittany Composite Squadron">PA-338 Nittany Composite Squadron</option>
+            <option value="PA-503 Crawford County Composite Squadron">PA-503 Crawford County Composite Squadron</option>
+            <option value="PA-505 Warren County Composite Squadron">PA-505 Warren County Composite Squadron</option>
+            <option value="PA-522 Columbia County Composite Squadron">PA-522 Columbia County Composite Squadron</option>
+            <option value="PA-601 Washington Composite Squadron">PA-601 Washington Composite Squadron</option>
+            <option value="__other">Other unit (type it in)</option>
+          </select>
+        </label>
+        <label id="sqOtherWrap" hidden>Unit name and charter number<input id="sqOther" placeholder="e.g. NJ-001 New Jersey Wing"></label>
+        <label>Contact name<input name="name" autocomplete="name" required></label>
         <div class="row2">
-          <label>Your name<input name="name" autocomplete="name" required></label>
-          <label>Your CAPID<input name="capid" inputmode="numeric" required></label>
+          <label>Contact email<input type="email" name="email" autocomplete="email" required></label>
+          <label>Contact phone<input type="tel" name="phone" autocomplete="tel" required></label>
         </div>
-        <div class="row2">
-          <label>Email<input type="email" name="email" autocomplete="email" required></label>
-          <label>Phone<input type="tel" name="phone" autocomplete="tel" required></label>
-        </div>
-        <label>Squadron (name and charter number)<input name="squadron" placeholder="e.g. PA-123 Example Composite Squadron" required></label>
-        <div class="row2">
-          <label>Driver name<input name="driver" required></label>
-          <label>Driver CAPID<input name="driverCapid" inputmode="numeric" required></label>
-        </div>
-        <label>Purpose<textarea name="purpose" required></textarea></label>
-        <label>Destination<input name="destination" required></label>
+        <p class="fine">Your contact details are seen only by the approving squadron. The public calendar shows just your squadron and dates.</p>
         <p class="fine" id="fine"></p>
         <div id="formMsg" class="msg" role="status"></div>
         <button class="btn primary" type="submit" id="send">Send request</button>
       </form>
     </section>
+    <p class="fine" style="margin-top:16px">Need to change or cancel? Use the <b>Manage my reservation</b> link in your confirmation email.</p>
   </main>
 
-  <!-- Review / cancel / return view -->
+  <!-- ===== Manage / review / return view ===== -->
   <main id="actionView" hidden>
     <section class="panel">
       <dl id="details"></dl>
+      <div id="changeBox"></div>
       <div id="actionArea"></div>
       <div id="actionMsg" class="msg" role="status" style="margin-top:16px"></div>
     </section>
@@ -143,9 +218,8 @@
 </div>
 
 <script>
-  /* ---------- API ---------- */
+  /* ---------- Shared ---------- */
   async function api(payload) {
-    // text/plain avoids a CORS preflight; no Google login is involved.
     const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload), redirect: 'follow' });
     if (!res.ok) throw new Error('Server responded ' + res.status);
     return res.json();
@@ -153,24 +227,50 @@
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
     c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-  function showMsg(el, text, ok) { el.textContent = text; el.className = 'msg ' + (ok ? 'ok' : 'err'); }
-  function setHeader(cfg) {
-    $('title').textContent = 'Borrow the ' + cfg.vanName;
-    $('sub').textContent = cfg.squadron + ' lends its van to other squadrons. Check the calendar, then send a request.';
-    document.title = cfg.vanName + ' Reservations';
-  }
+  function showMsg(el, text, kind) { el.textContent = text; el.className = 'msg ' + kind; }
   function fatal(text) { $('sub').textContent = ''; $('loadErr').hidden = false; $('loadErr').textContent = text; }
+  const shortDate = ms => new Date(ms).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
-  /* ---------- Booking view ---------- */
+  /* ---------- Public view ---------- */
   let bookings = [], selected = null;
   const today = new Date(); today.setHours(0,0,0,0);
   const view = new Date(today.getFullYear(), today.getMonth(), 1);
 
+  function who(b) { return esc(b.squadron); }
+  function tag(b) {
+    if (b.change === 'Cancel') return '<span class="tag wait">Cancellation requested</span>';
+    if (b.change === 'Amend') return '<span class="tag wait">Change requested</span>';
+    return b.status === 'Approved' ? '<span class="tag ok">Booked</span>' : '<span class="tag wait">Awaiting approval</span>';
+  }
+
+  function renderNow() {
+    const now = Date.now();
+    const current = bookings.find(b => b.status === 'Approved' && b.start <= now && b.end > now);
+    const next = bookings.find(b => b.status === 'Approved' && b.start > now);
+    const box = $('nowStatus');
+    if (current) {
+      box.className = 'status out';
+      box.innerHTML = '<div class="big">The van is out with ' + esc(current.squadron) + '</div>' +
+        '<div class="detail">Due back ' + esc(shortDate(current.end)) + '.</div>';
+    } else {
+      box.className = 'status free';
+      box.innerHTML = '<div class="big">The van is available now</div>' +
+        '<div class="detail">' + (next ? 'Next booking: ' + esc(next.squadron) + ', ' + esc(shortDate(next.start)) + '.'
+                                       : 'No upcoming bookings.') + '</div>';
+    }
+  }
+  function renderUpcoming() {
+    const now = Date.now();
+    const list = bookings.filter(b => b.end > now).slice(0, 10);
+    $('upcoming').innerHTML = list.length
+      ? list.map(b => '<li><strong>' + esc(b.label) + '</strong>' + tag(b) + '<br>' + who(b) + '</li>').join('')
+      : '<li>No upcoming reservations. The van is open.</li>';
+  }
   function onDay(d) {
     const s = d.getTime(), e = s + 864e5;
     return bookings.filter(b => b.start < e && b.end > s);
   }
-  function render() {
+  function renderCal() {
     $('monthLabel').textContent = view.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
     const first = view.getDay();
     const count = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
@@ -183,114 +283,198 @@
       if (d.getTime() === today.getTime()) cls.push('today');
       if (list.some(b => b.status === 'Approved')) cls.push('booked');
       else if (list.length) cls.push('pending');
+      if (list.some(b => b.change)) cls.push('req');
       const pressed = !!selected && selected.getTime() === d.getTime();
       html += '<button class="' + cls.join(' ') + '" data-t="' + d.getTime() + '" aria-pressed="' + pressed +
-        '" aria-label="' + d.toDateString() + (list.length ? ', reserved' : ', available') + '">' + n + '</button>';
+        '" aria-label="' + d.toDateString() + (list.length ? ', reserved' : ', available') + (list.some(b => b.change) ? ', change or cancellation requested' : '') + '">' + n + '</button>';
     }
     $('days').innerHTML = html;
   }
   function showDay(d) {
-    selected = d; render();
+    selected = d; renderCal();
     const list = onDay(d);
     const title = '<strong>' + d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) + '</strong>';
     $('dayInfo').innerHTML = !list.length ? title + ': available.' :
-      title + list.map(b => '<div>' + (b.status === 'Approved' ? 'Booked' : 'Requested') + ' by ' + esc(b.squadron) +
-        '<br><span class="fine">' + esc(b.label) + '</span></div>').join('');
+      title + list.map(b => '<div>' + esc(b.label) + tag(b) + '<br>' + who(b) + '</div>').join('');
+  }
+  function buildSquadronSelect() {
+    $('sqSelect').onchange = () => { $('sqOtherWrap').hidden = $('sqSelect').value !== '__other'; };
   }
   async function loadBookings() {
     const res = await api({ action: 'init' });
     if (!res.ok) throw new Error(res.message);
     bookings = res.bookings;
-    setHeader(res.cfg);
+    $('title').textContent = 'Borrow the ' + res.cfg.vanName;
+    $('sub').textContent = res.cfg.squadron + ' lends its van to other squadrons. See who has it, then send a request.';
+    document.title = res.cfg.vanName + ' Reservations';
     $('fine').textContent = 'The driver must be a qualified CAP vehicle operator. Requests are reviewed by ' +
       res.cfg.squadron + ' before they are confirmed. Maximum ' + res.cfg.maxDays + ' days.';
-    render();
+    renderNow(); renderUpcoming(); renderCal();
   }
-  function startBooking() {
+  function startPublic() {
     $('dows').innerHTML = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => '<div class="dow">' + d + '</div>').join('');
+    buildSquadronSelect();
     $('days').addEventListener('click', e => {
       const b = e.target.closest('.day'); if (b && b.dataset.t) showDay(new Date(+b.dataset.t));
     });
-    $('prev').onclick = () => { view.setMonth(view.getMonth() - 1); render(); };
-    $('next').onclick = () => { view.setMonth(view.getMonth() + 1); render(); };
+    $('prev').onclick = () => { view.setMonth(view.getMonth() - 1); renderCal(); };
+    $('next').onclick = () => { view.setMonth(view.getMonth() + 1); renderCal(); };
     $('f').addEventListener('submit', async e => {
       e.preventDefault();
+      const data = Object.fromEntries(new FormData(e.target));
+      data.squadron = $('sqSelect').value === '__other' ? $('sqOther').value.trim() : $('sqSelect').value;
+      if (!data.squadron) return showMsg($('formMsg'), 'Choose your squadron.', 'err');
       const btn = $('send'); btn.disabled = true; btn.textContent = 'Sending…'; $('formMsg').textContent = '';
       try {
-        const res = await api({ action: 'submit', data: Object.fromEntries(new FormData(e.target)) });
-        showMsg($('formMsg'), res.message, res.ok);
-        if (res.ok) { e.target.reset(); await loadBookings(); }
+        const res = await api({ action: 'submit', data });
+        showMsg($('formMsg'), res.message, res.ok ? 'ok' : 'err');
+        if (res.ok) { e.target.reset(); $('sqOtherWrap').hidden = true; await loadBookings(); }
       } catch (err) {
-        showMsg($('formMsg'), 'The request did not go through. Check your connection and try again.', false);
+        showMsg($('formMsg'), 'The request did not go through. Check your connection and try again.', 'err');
       }
       btn.disabled = false; btn.textContent = 'Send request';
     });
-    render();
+    renderCal();
     loadBookings().then(() => { $('bookView').hidden = false; })
       .catch(() => fatal('Reservations could not load. Refresh the page to try again.'));
   }
 
-  /* ---------- Review / cancel / return view ---------- */
-  async function startAction(mode, id, t) {
-    let res;
-    try { res = await api({ action: 'get', mode, id, t }); }
-    catch (err) { return fatal('The reservation could not load. Refresh the page to try again.'); }
-    if (!res.ok) return fatal(res.message);
-    setHeader(res.cfg);
-    $('title').textContent = res.cfg.vanName + ' reservation';
-    $('sub').textContent = res.cfg.squadron;
-    const b = res.booking;
-    $('details').innerHTML = [['Status', b.status], ['Pickup', b.pickup], ['Return', b.ret], ['Squadron', b.squadron],
-      ['Requested by', b.name + ' (' + b.capid + ')'], ['Driver', b.driver + ' (' + b.driverCapid + ')'],
-      ['Phone', b.phone], ['Purpose', b.purpose], ['Destination', b.destination]]
-      .map(x => '<dt>' + x[0] + '</dt><dd>' + esc(x[1]) + '</dd>').join('');
+  /* ---------- Manage / review / return ---------- */
+  let ID, TOK, MODE, booking;
 
-    const area = $('actionArea'), active = b.status === 'Pending' || b.status === 'Approved';
-    if (mode === 'review' && b.status === 'Pending') {
-      area.innerHTML = '<div class="actions"><button class="btn primary" data-d="approve">Approve</button>' +
-                       '<button class="btn danger" data-d="deny">Deny</button></div>';
-    } else if (mode === 'review' && b.status === 'Approved') {
-      area.innerHTML = '<div class="actions"><button class="btn danger" data-d="cancel">Cancel reservation</button></div>';
-    } else if (mode === 'cancel' && active) {
-      area.innerHTML = '<p>Cancel this reservation? The van will be released for others to book.</p>' +
-        '<div class="actions"><button class="btn danger" data-c="1">Cancel reservation</button></div>';
-    } else if (mode === 'return' && b.status === 'Approved') {
-      area.innerHTML = '<label style="margin-top:14px">Ending mileage<input id="mi" inputmode="numeric"></label>' +
-        '<label style="margin-top:12px">Fuel level<select id="fuel"><option value="">Choose…</option>' +
-        '<option>Full</option><option>3/4</option><option>1/2</option><option>1/4</option><option>Near empty</option></select></label>' +
-        '<label style="margin-top:12px">Damage or issues<textarea id="notes" placeholder="Leave blank if none"></textarea></label>' +
-        '<div class="actions"><button class="btn primary" data-r="1">Submit return report</button></div>';
-    } else {
-      area.innerHTML = '<p>No action is needed. This reservation is ' + esc(b.status.toLowerCase()) + '.</p>';
+  async function send(payload, area) {
+    area.querySelectorAll('button').forEach(x => x.disabled = true);
+    try {
+      const r = await api(payload);
+      showMsg($('actionMsg'), r.message, r.ok ? 'ok' : 'err');
+      if (r.ok) { area.innerHTML = ''; await reloadAction(); }
+      else area.querySelectorAll('button').forEach(x => x.disabled = false);
+    } catch (err) {
+      showMsg($('actionMsg'), 'That did not go through. Check your connection and try again.', 'err');
+      area.querySelectorAll('button').forEach(x => x.disabled = false);
+    }
+  }
+
+  function renderChange(change) {
+    if (!change) { $('changeBox').innerHTML = ''; return; }
+    let html = '<h3>' + (change.type === 'Cancel' ? 'Cancellation requested' : 'Change requested') + '</h3>';
+    if (change.reason) html += '<p>Reason: ' + esc(change.reason) + '</p>';
+    if (change.items.length) {
+      html += '<div class="tablewrap"><table class="diff"><tr><th>Item</th><th>Now</th><th>Requested</th></tr>' +
+        change.items.map(i => '<tr><td>' + esc(i.label) + '</td><td>' + esc(i.from) + '</td><td class="new">' + esc(i.to) + '</td></tr>').join('') +
+        '</table></div>';
+    }
+    $('changeBox').innerHTML = html;
+  }
+
+  function renderActions(change) {
+    const area = $('actionArea');
+    const active = booking.status === 'Pending' || booking.status === 'Approved';
+    area.innerHTML = '';
+
+    if (MODE === 'review') {
+      if (change) {
+        area.innerHTML = '<div class="actions"><button class="btn primary" data-d="approveChange">Approve ' +
+          (change.type === 'Cancel' ? 'cancellation' : 'change') + '</button>' +
+          '<button class="btn plain" data-d="denyChange">Decline ' + (change.type === 'Cancel' ? 'cancellation' : 'change') + '</button></div>';
+      } else if (booking.status === 'Pending') {
+        area.innerHTML = '<div class="actions"><button class="btn primary" data-d="approve">Approve request</button>' +
+          '<button class="btn danger" data-d="deny">Deny request</button></div>';
+      } else if (booking.status === 'Approved') {
+        area.innerHTML = '<div class="actions"><button class="btn danger" data-d="cancel">Cancel this reservation</button></div>';
+      } else {
+        area.innerHTML = '<p>No action is needed. This reservation is ' + esc(booking.status.toLowerCase()) + '.</p>';
+      }
+      area.onclick = e => {
+        const b = e.target.closest('button[data-d]'); if (!b) return;
+        if (b.dataset.d === 'cancel' && !confirm('Cancel this reservation now?')) return;
+        send({ action: 'decide', id: ID, t: TOK, decision: b.dataset.d }, area);
+      };
+      return;
     }
 
-    area.addEventListener('click', async e => {
-      const btn = e.target.closest('button'); if (!btn) return;
-      let payload;
-      if (btn.dataset.d) payload = { action: 'decide', id, t, decision: btn.dataset.d };
-      else if (btn.dataset.c) payload = { action: 'cancel', id, t };
-      else if (btn.dataset.r) {
+    if (MODE === 'return') {
+      if (booking.status !== 'Approved') {
+        area.innerHTML = '<p>No action is needed. This reservation is ' + esc(booking.status.toLowerCase()) + '.</p>';
+        return;
+      }
+      area.innerHTML = '<div class="stack" style="margin-top:16px">' +
+        '<label>Ending mileage<input id="mi" inputmode="numeric"></label>' +
+        '<label>Fuel level<select id="fuel"><option value="">Choose…</option><option>Full</option><option>3/4</option>' +
+        '<option>1/2</option><option>1/4</option><option>Near empty</option></select></label>' +
+        '<label>Damage or issues<textarea id="notes" placeholder="Leave blank if none"></textarea></label>' +
+        '<div><button class="btn primary" id="retBtn">Submit return report</button></div></div>';
+      $('retBtn').onclick = () => {
         const mi = $('mi').value.trim(), fuel = $('fuel').value;
-        if (!mi || !fuel) return showMsg($('actionMsg'), 'Enter the ending mileage and fuel level.', false);
-        payload = { action: 'return', id, t, mileage: mi, fuel, notes: $('notes').value };
-      }
-      area.querySelectorAll('button').forEach(x => x.disabled = true);
-      try {
-        const r = await api(payload);
-        showMsg($('actionMsg'), r.message, r.ok);
-        if (!r.ok) area.querySelectorAll('button').forEach(x => x.disabled = false);
-      } catch (err) {
-        showMsg($('actionMsg'), 'That did not go through. Check your connection and try again.', false);
-        area.querySelectorAll('button').forEach(x => x.disabled = false);
-      }
-    });
-    $('actionView').hidden = false;
+        if (!mi || !fuel) return showMsg($('actionMsg'), 'Enter the ending mileage and fuel level.', 'err');
+        send({ action: 'return', id: ID, t: TOK, mileage: mi, fuel, notes: $('notes').value }, area);
+      };
+      return;
+    }
+
+    // MODE === 'manage'
+    if (!active) {
+      area.innerHTML = '<p>This reservation is ' + esc(booking.status.toLowerCase()) + '. No changes can be made.</p>';
+      return;
+    }
+    if (change) {
+      area.innerHTML = '<div class="msg note" style="margin-top:16px">Your request is waiting for approval. ' +
+        'Your reservation stays as shown above until it is approved. You will get an email with the answer.</div>';
+      return;
+    }
+    area.innerHTML = '<p style="margin-top:16px">Changes and cancellations are reviewed by the squadron before they take effect.</p>' +
+      '<div class="actions"><button class="btn primary" id="showChange">Request a change</button>' +
+      '<button class="btn danger" id="showCancel">Request cancellation</button></div><div id="formArea"></div>';
+
+    $('showChange').onclick = () => {
+      $('formArea').innerHTML = '<h3>Request a change</h3><div class="stack">' +
+        '<p class="fine">Edit only what needs to change.</p>' +
+        '<div class="row2"><label>Pickup<input type="datetime-local" id="c_pickup" value="' + esc(booking.pickupInput) + '"></label>' +
+        '<label>Return<input type="datetime-local" id="c_ret" value="' + esc(booking.retInput) + '"></label></div>' +
+        '<div class="row2"><label>Contact name<input id="c_name" value="' + esc(booking.name) + '"></label>' +
+        '<label>Contact phone<input id="c_phone" type="tel" value="' + esc(booking.phone) + '"></label></div>' +
+        '<label>Reason for the change<textarea id="c_reason"></textarea></label>' +
+        '<div><button class="btn primary" id="sendChange">Send change request</button></div></div>';
+      $('sendChange').onclick = () => {
+        const data = {};
+        ['pickup', 'ret', 'name', 'phone'].forEach(k => data[k] = $('c_' + k).value);
+        send({ action: 'requestChange', id: ID, t: TOK, data, reason: $('c_reason').value }, area);
+      };
+    };
+    $('showCancel').onclick = () => {
+      $('formArea').innerHTML = '<h3>Request cancellation</h3><div class="stack">' +
+        '<label>Reason<textarea id="x_reason"></textarea></label>' +
+        '<div><button class="btn danger" id="sendCancel">Send cancellation request</button></div></div>';
+      $('sendCancel').onclick = () => send({ action: 'requestCancel', id: ID, t: TOK, reason: $('x_reason').value }, area);
+    };
+  }
+
+  async function reloadAction() {
+    const res = await api({ action: 'get', mode: MODE, id: ID, t: TOK });
+    if (!res.ok) return fatal(res.message);
+    booking = res.booking;
+    $('title').textContent = res.cfg.vanName + ' reservation';
+    $('sub').textContent = MODE === 'review' ? 'Approver view' : res.cfg.squadron;
+    document.title = res.cfg.vanName + ' reservation';
+    const b = booking;
+    $('details').innerHTML = [['Status', b.status], ['Pickup', b.pickup], ['Return', b.ret], ['Squadron', b.squadron],
+      ['Contact', b.name], ['Email', b.email], ['Phone', b.phone]]
+      .map(x => '<dt>' + x[0] + '</dt><dd>' + esc(x[1]) + '</dd>').join('');
+    renderChange(res.change);
+    renderActions(res.change);
+  }
+
+  async function startAction(mode, id, t) {
+    MODE = mode === 'cancel' ? 'manage' : mode;   // older email links used "cancel"
+    ID = id; TOK = t;
+    try { await reloadAction(); $('actionView').hidden = false; }
+    catch (err) { fatal('The reservation could not load. Refresh the page to try again.'); }
   }
 
   /* ---------- Start ---------- */
   const q = new URLSearchParams(location.search);
   if (q.get('a') && q.get('id') && q.get('t')) startAction(q.get('a'), q.get('id'), q.get('t'));
-  else startBooking();
+  else startPublic();
 </script>
 </body>
 </html>
